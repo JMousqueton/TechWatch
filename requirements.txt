@@ -1,0 +1,15 @@
+fastapi
+uvicorn
+sqlalchemy
+pydantic
+pydantic-settings
+python-dotenv
+python-multipart
+pyjwt
+passlib
+bcrypt
+beautifulsoup4
+feedparser
+requests
+pytest
+bleach
