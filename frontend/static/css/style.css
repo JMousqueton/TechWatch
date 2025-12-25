@@ -493,6 +493,53 @@ table tr:hover {
     flex-shrink: 0;
 }
 
+/* Global Spinner Overlay */
+.global-spinner-overlay {
+    position: fixed;
+    top: 0; left: 0; right: 0; bottom: 0;
+    background: rgba(255,255,255,0.7);
+    z-index: 9999;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+.global-spinner {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    background: #fff;
+    border-radius: 12px;
+    box-shadow: 0 2px 16px rgba(0,0,0,0.12);
+    padding: 32px 40px;
+}
+
+/* Toast Notifications */
+.global-toast {
+    position: fixed;
+    left: 50%;
+    bottom: 40px;
+    transform: translateX(-50%);
+    min-width: 220px;
+    max-width: 90vw;
+    background: #27ae60;
+    color: #fff;
+    padding: 16px 32px;
+    border-radius: 8px;
+    font-size: 1.1em;
+    box-shadow: 0 2px 16px rgba(0,0,0,0.18);
+    z-index: 10000;
+    text-align: center;
+    display: none;
+    opacity: 0.98;
+    transition: opacity 0.3s;
+}
+.global-toast.toast-error {
+    background: #e74c3c;
+}
+.global-toast.toast-success {
+    background: #27ae60;
+}
+
 /* Responsive */
 @media (max-width: 768px) {
     #app {

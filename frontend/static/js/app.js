@@ -477,6 +477,13 @@ const ArticlesPage = {
                     </div>
                 </div>
             </div>
+
+            <div v-if="refreshing" class="global-spinner-overlay">
+                <div class="global-spinner">
+                    <i class="fa fa-spinner fa-spin fa-3x"></i>
+                    <div style="margin-top: 12px; font-size: 1.1em; color: #333;">Refreshing articles...</div>
+                </div>
+            </div>
         </div>
     `,
     data() {
@@ -489,7 +496,8 @@ const ArticlesPage = {
             errorRibbon: '',
             localFeedId: this.selectedFeedId,
             rocketPopupOpenId: null,
-            newestSyncDate: null
+            newestSyncDate: null,
+            refreshing: false // <-- Added refreshing state
         };
     },
     watch: {
@@ -592,26 +600,27 @@ const ArticlesPage = {
             this.searchQuery = '';
             this.localFeedId = null;
             this.scoreFilterActive = false;
+            this.refreshing = true;
             // Sync all feeds before loading articles
             try {
                 const feeds = await this.api.getFeeds();
                 let errorMessages = [];
-                    await Promise.all((feeds || []).filter(feed => feed.is_active).map(async feed => {
+                await Promise.all((feeds || []).filter(feed => feed.is_active).map(async feed => {
                     try {
                         await this.api.syncFeed(feed.id);
-                    } catch (e) {
-                        errorMessages.push(`Feed "${feed.name}" sync failed: ${e.message}`);
+                    } catch (err) {
+                        errorMessages.push(`Feed ${feed.name}: ${err.message}`);
                     }
                 }));
                 if (errorMessages.length > 0) {
                     this.errorRibbon = errorMessages.join(' | ');
-                } else {
-                    this.errorRibbon = '';
                 }
-            } catch (e) {
-                this.errorRibbon = 'Feed sync error: ' + e.message;
+                await this.loadArticles();
+            } catch (err) {
+                alert(err.message);
+            } finally {
+                this.refreshing = false;
             }
-            this.loadArticles();
         },
         formatDate(date) {
             const d = new Date(date);
@@ -762,7 +771,14 @@ const FeedsPage = {
                                 <span v-else>{{ feed.last_sync_status || 'unknown' }}</span>
                             </td>
                             <td style="display:flex; gap:8px; align-items:center;">
-                                <button class="btn btn-small btn-primary" @click="syncFeed(feed)">Sync</button>
+                                <button class="btn btn-small btn-primary" @click="syncFeed(feed)" :disabled="syncingFeedId === feed.id">
+                                    <span v-if="syncingFeedId === feed.id">
+                                        <i class="fa fa-spinner fa-spin"></i> Syncing...
+                                    </span>
+                                    <span v-else>
+                                        Sync
+                                    </span>
+                                </button>
                                 <button class="btn btn-small btn-danger" @click="deleteFeed(feed)">Delete</button>
                                 <button class="btn btn-small" style="background:#e74c3c; color:white;" title="Reinitialize Feed" @click="reinitFeed(feed)"><i class="fa-solid fa-recycle"></i></button>
                             </td>
@@ -771,13 +787,21 @@ const FeedsPage = {
                 </table>
                 <div v-else style="text-align: center; color: #7f8c8d;">No feeds configured yet.</div>
             </div>
+
+            <div v-if="syncingFeedId !== null" class="global-spinner-overlay">
+                <div class="global-spinner">
+                    <i class="fa fa-spinner fa-spin fa-3x"></i>
+                    <div style="margin-top: 12px; font-size: 1.1em; color: #333;">Syncing feed...</div>
+                </div>
+            </div>
         </div>
     `,
     props: ['api'],
     data() {
         return {
             feeds: [],
-            newFeed: { name: '', url: '', feedType: 'rss', description: '', autostarred: false }
+            newFeed: { name: '', url: '', feedType: 'rss', description: '', autostarred: false },
+            syncingFeedId: null // Track which feed is syncing
         };
     },
     mounted() {
@@ -834,39 +858,45 @@ const FeedsPage = {
                     autostarred: this.newFeed.autostarred
                 });
                 this.newFeed = { name: '', url: '', feedType: 'rss', description: '', autostarred: false };
+                showToast('Feed added!', 'success');
                 this.loadFeeds();
             } catch (err) {
-                alert(err.message);
+                showToast(err.message, 'error');
             }
         },
         async toggleAutostarred(feed) {
             try {
                 await this.api.updateFeed(feed.id, { autostarred: feed.autostarred });
+                showToast('Autostarred updated!', 'success');
             } catch (err) {
-                alert('Failed to update autostarred: ' + err.message);
+                showToast('Failed to update autostarred: ' + err.message, 'error');
                 feed.autostarred = !feed.autostarred;
             }
         },
         async syncFeed(feed) {
             if (!feed.is_active) {
-                alert('Feed is disabled. Enable it to sync.');
+                showToast('Feed is disabled. Enable it to sync.', 'error');
                 return;
             }
+            this.syncingFeedId = feed.id;
             try {
                 await this.api.syncFeed(feed.id);
-                alert('Feed synced successfully!');
+                showToast('Feed synced successfully!', 'success');
                 this.loadFeeds();
             } catch (err) {
-                alert(err.message);
+                showToast(err.message, 'error');
+            } finally {
+                this.syncingFeedId = null;
             }
         },
         async deleteFeed(feed) {
             if (confirm(`Delete feed "${feed.name}"?`)) {
                 try {
                     await this.api.deleteFeed(feed.id);
+                    showToast('Feed deleted!', 'success');
                     this.loadFeeds();
                 } catch (err) {
-                    alert(err.message);
+                    showToast(err.message, 'error');
                 }
             }
         },
@@ -934,10 +964,10 @@ const FeedsPage = {
                 // Bulk create feeds via API
                 try {
                     await Promise.all(feeds.map(feed => this.api.createFeed(feed)));
-                    alert('Feeds imported successfully!');
+                    showToast('Feeds imported successfully!', 'success');
                     this.loadFeeds();
                 } catch (err) {
-                    alert('Error importing feeds: ' + err.message);
+                    showToast('Error importing feeds: ' + err.message, 'error');
                 }
             };
             reader.readAsText(file);
@@ -1269,6 +1299,25 @@ const AboutPage = {
         </div>
     `
 };
+
+// Toast notification system
+let toastTimeout = null;
+function showToast(message, type = 'success', duration = 3000) {
+    let toast = document.getElementById('global-toast');
+    if (!toast) {
+        toast = document.createElement('div');
+        toast.id = 'global-toast';
+        toast.className = 'global-toast';
+        document.body.appendChild(toast);
+    }
+    toast.textContent = message;
+    toast.className = 'global-toast ' + (type === 'error' ? 'toast-error' : 'toast-success');
+    toast.style.display = 'block';
+    clearTimeout(toastTimeout);
+    toastTimeout = setTimeout(() => {
+        toast.style.display = 'none';
+    }, duration);
+}
 
 // DashboardComponent - DEFINED AFTER page components
 // AdminPage: simple admin UI with rescore button
