@@ -1,4 +1,4 @@
-    // Utility function to add target="_blank" to all <a> tags in HTML
+// Utility function to add target="_blank" to all <a> tags in HTML
     function addTargetBlank(html) {
         if (!html) return html;
         // Add target="_blank" to all <a> tags that don't already have it
@@ -712,6 +712,15 @@ const FeedsPage = {
 
             <div class="card">
                 <h3>Your Feeds</h3>
+                <div class="card" style="margin-bottom: 16px; display: flex; gap: 12px; align-items: center;">
+                    <button class="btn btn-primary btn-small" @click="exportOPML" style="margin-bottom: 0;">
+                        <i class="fa-solid fa-floppy-disk"></i> Export OPML
+                    </button>
+                    <label class="btn btn-primary btn-small" style="margin-bottom: 0; display: inline-block; cursor: pointer;">
+                        <i class="fa-solid fa-file-import"></i> Import OPML
+                        <input type="file" accept=".xml,.opml" @change="importOPML" style="display:none;">
+                    </label>
+                </div>
                 <table v-if="feeds.length > 0">
                     <thead>
                         <tr>
@@ -864,6 +873,74 @@ const FeedsPage = {
         formatDate(date) {
             const d = new Date(date);
             return d.toLocaleDateString() + ' ' + d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false });
+        },
+        async exportOPML() {
+            // Create an OPML string from the current feeds
+            const opmlHeader = `<?xml version="1.0" encoding="UTF-8"?>
+<opml version="2.0">
+<head>
+  <title>OPML Export</title>
+</head>
+<body>
+`;
+
+            const opmlFooter = `
+</body>
+</opml>
+`;
+
+            const feedLines = (this.feeds || []).map(feed => {
+                return `  <outline type="rss" text="${feed.name}" title="${feed.name}" xmlUrl="${feed.url}" htmlUrl="${feed.url}" />`;
+            }).join('\n');
+
+            const opmlContent = opmlHeader + feedLines + '\n' + opmlFooter;
+
+            // Create a blob and download it
+            const blob = new Blob([opmlContent], { type: 'application/xml' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'feeds.opml';
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+        },
+        async importOPML(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+
+            const reader = new FileReader();
+            reader.onload = async (e) => {
+                const contents = e.target.result;
+                // Parse the OPML XML
+                const parser = new DOMParser();
+                const xmlDoc = parser.parseFromString(contents, 'text/xml');
+                const outlineEls = xmlDoc.getElementsByTagName('outline');
+
+                const feeds = [];
+                for (let i = 0; i < outlineEls.length; i++) {
+                    const el = outlineEls[i];
+                    const type = el.getAttribute('type');
+                    if (type === 'rss') {
+                        const url = el.getAttribute('xmlUrl');
+                        const title = el.getAttribute('title') || el.getAttribute('text');
+                        if (url) {
+                            feeds.push({ name: title, url, feed_type: 'rss' });
+                        }
+                    }
+                }
+
+                // Bulk create feeds via API
+                try {
+                    await Promise.all(feeds.map(feed => this.api.createFeed(feed)));
+                    alert('Feeds imported successfully!');
+                    this.loadFeeds();
+                } catch (err) {
+                    alert('Error importing feeds: ' + err.message);
+                }
+            };
+            reader.readAsText(file);
         }
     }
 };

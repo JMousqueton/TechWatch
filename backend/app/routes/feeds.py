@@ -234,3 +234,58 @@ def sync_feed(feed_id: int,
         feed.last_sync_status = "failed"
         db.commit()
         raise
+
+from fastapi import UploadFile, File
+import xml.etree.ElementTree as ET
+import fastapi
+# OPML Export endpoint
+@router.get("/export_opml")
+def export_opml(user = Depends(get_current_user), db: Session = Depends(get_db)):
+    """Export user's feeds as OPML"""
+    feeds = db.query(Feed).filter(Feed.user_id == user.id).all()
+    opml = ET.Element('opml', version="2.0")
+    head = ET.SubElement(opml, 'head')
+    title = ET.SubElement(head, 'title')
+    title.text = f"{user.username}'s Feeds"
+    body = ET.SubElement(opml, 'body')
+    for feed in feeds:
+        outline = ET.SubElement(body, 'outline',
+            text=feed.name,
+            title=feed.name,
+            type=feed.feed_type,
+            xmlUrl=feed.url,
+            description=feed.description or ""
+        )
+    import io
+    opml_str = ET.tostring(opml, encoding='utf-8', method='xml')
+    return fastapi.responses.Response(content=opml_str, media_type="application/xml")
+
+# OPML Import endpoint
+@router.post("/import_opml")
+async def import_opml(file: UploadFile = File(...), user = Depends(get_current_user), db: Session = Depends(get_db)):
+    """Import feeds from OPML file"""
+    content = await file.read()
+    tree = ET.fromstring(content)
+    outlines = tree.find('body').findall('.//outline')
+    imported = 0
+    for outline in outlines:
+        name = outline.attrib.get('title') or outline.attrib.get('text')
+        url = outline.attrib.get('xmlUrl')
+        feed_type = outline.attrib.get('type', 'rss')
+        description = outline.attrib.get('description', '')
+        if not url:
+            continue
+        # Avoid duplicates
+        exists = db.query(Feed).filter(Feed.user_id == user.id, Feed.url == url).first()
+        if not exists:
+            db_feed = Feed(
+                user_id=user.id,
+                name=name or url,
+                url=url,
+                feed_type=feed_type,
+                description=description
+            )
+            db.add(db_feed)
+            imported += 1
+    db.commit()
+    return {"imported": imported}
