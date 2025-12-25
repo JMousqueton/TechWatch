@@ -689,6 +689,32 @@ const FeedsPage = {
             <div v-if="feeds.some(f => f.health === 'stale' || f.health === 'broken')" class="feed-alert-ribbon">
                 <span style="color:white; font-weight:bold;">⚠️ Some feeds are stale or broken and may need your attention!</span>
             </div>
+                <div class="card" style="margin-bottom: 16px;">
+                    <h3>Add Google News Feed</h3>
+                    <form @submit.prevent="addGoogleNewsFeed">
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label>Name</label>
+                                <input v-model="googleNews.name" placeholder="e.g., Google News AI" required>
+                            </div>
+                            <div class="form-group">
+                                <label>Keywords</label>
+                                <input v-model="googleNews.keywords" placeholder="e.g., AI, Machine Learning" required>
+                            </div>
+                            <div class="form-group">
+                                <label>Country</label>
+                                <select v-model="googleNews.country" required>
+                                    <option value="FR">France</option>
+                                    <option value="UK">United Kingdom</option>
+                                    <option value="DE">Germany</option>
+                                    <option value="CA">Canada</option>
+                                    <option value="US">USA</option>
+                                </select>
+                            </div>
+                        </div>
+                        <button type="submit" class="btn btn-primary btn-small"><i class="fa fa-plus"></i> Add Google News Feed</button>
+                    </form>
+                </div>
             <div class="card">
                 <h3>Add New Feed</h3>
                 <form @submit.prevent="addFeed">
@@ -802,12 +828,48 @@ const FeedsPage = {
             feeds: [],
             newFeed: { name: '', url: '', feedType: 'rss', description: '', autostarred: false },
             syncingFeedId: null // Track which feed is syncing
+                ,
+                googleNews: { name: '', keywords: '', country: 'FR' }
         };
     },
     mounted() {
         this.loadFeeds();
     },
     methods: {
+            async addGoogleNewsFeed() {
+                // Validate fields
+                if (!this.googleNews.name || !this.googleNews.keywords || !this.googleNews.country) {
+                    showToast('Please fill all Google News fields.', 'error');
+                    return;
+                }
+                // Map country to language and ceid
+                // Correct mapping for hl and ceid for Google News
+                const countryMap = {
+                    'FR': { hl: 'fr', gl: 'FR', ceid: 'FR:fr' },
+                    'UK': { hl: 'en-GB', gl: 'GB', ceid: 'GB:en' },
+                    'DE': { hl: 'de-DE', gl: 'DE', ceid: 'DE:de' },
+                    'CA': { hl: 'en-CA', gl: 'CA', ceid: 'CA:en' },
+                    'US': { hl: 'en-US', gl: 'US', ceid: 'US:en' }
+                };
+                const c = countryMap[this.googleNews.country] || countryMap['FR'];
+                // Format keywords for URL
+                const keywords = '"' + this.googleNews.keywords.trim().split(/\s*,\s*|\s+/).join('+') + '"';
+                const url = `https://news.google.com/rss/search?q=${keywords}&hl=${c.hl}&gl=${c.gl}&ceid=${c.ceid}`;
+                try {
+                    await this.api.createFeed({
+                        name: this.googleNews.name,
+                        url,
+                        feed_type: 'rss',
+                        description: `Google News feed for: ${this.googleNews.keywords}`,
+                        autostarred: false
+                    });
+                    this.googleNews = { name: '', keywords: '', country: 'FR' };
+                    showToast('Google News feed added!', 'success');
+                    this.loadFeeds();
+                } catch (err) {
+                    showToast('Failed to add Google News feed: ' + err.message, 'error');
+                }
+            },
         // ...existing code...
         async reinitFeed(feed) {
             if (!confirm(`Reinitialize feed '${feed.name}'? This will reset its sync state and fetch all articles on next sync.`)) return;
