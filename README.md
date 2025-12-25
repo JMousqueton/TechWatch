@@ -14,7 +14,8 @@ Below are screenshots of the main features and pages:
 ## Features
 
 - **Authentication & Security**: User registration, login, JWT tokens, and secure endpoints.
-- **Feed Management**: Add/manage RSS feeds and web scrapers, recycle feeds, and view feed health.
+- **Feed Management**: Add/manage RSS feeds, Google News feeds (with region/language support), and web scrapers. Recycle feeds and view feed health.
+- **Google News Feed Generator**: Easily generate and add Google News RSS feeds by specifying keywords and selecting a country (France, UK, Germany, Canada, USA). The app automatically formats the correct region/language parameters for Google News.
 - **Keyword Scoring**: Configure keywords with custom weights; automatic scoring of articles based on matches.
 - **Article Management**: View, search (with boolean/advanced queries), like (♥), star (⭐), delete, and filter articles. Dedicated Starred page with backend filtering. Share articles on social media (LinkedIn, X, Bluesky) via a modal popup.
 - **Scoring System**: Base score from keywords, +5 boost for likes, total score used for sorting and display.
@@ -120,8 +121,25 @@ techwatch/
 
 ### 3. Add Feeds
 - Go to "Feeds" section
-- Add RSS feeds (e.g., https://news.ycombinator.com/rss) or web scraper URLs
+- To add a standard feed: Enter the RSS feed URL (e.g., https://news.ycombinator.com/rss) or a web scraper URL.
+- To add a Google News feed: Use the "Add Google News Feed" form. Enter a name, keywords (comma or space separated), and select a country (France, UK, Germany, Canada, USA). The app will generate the correct Google News RSS URL for you.
 - Click "Sync" to fetch articles (only new articles since last sync are added)
+-
+#### Google News Feed Generator Example
+
+1. Go to the "Feeds" page.
+2. In the "Add Google News Feed" section, enter:
+   - **Name**: Any label for your feed (e.g., "Google News AI FR")
+   - **Keywords**: e.g., `AI, Machine Learning`
+   - **Country**: Select from France, UK, Germany, Canada, USA
+3. The app will generate a Google News RSS URL like:
+   - For France: `https://news.google.com/rss/search?q="AI+Machine+Learning"&hl=fr&gl=FR&ceid=FR:fr`
+   - For UK: `https://news.google.com/rss/search?q="AI+Machine+Learning"&hl=en-GB&gl=GB&ceid=GB:en`
+   - For Germany: `https://news.google.com/rss/search?q="AI+Machine+Learning"&hl=de-DE&gl=DE&ceid=DE:de`
+   - For Canada: `https://news.google.com/rss/search?q="AI+Machine+Learning"&hl=en-CA&gl=CA&ceid=CA:en`
+   - For USA: `https://news.google.com/rss/search?q="AI+Machine+Learning"&hl=en-US&gl=US&ceid=US:en`
+4. The keywords are automatically wrapped in double quotes and joined with `+` for Google News compatibility.
+5. Click "Add Google News Feed" to save it. The feed will appear in your list and can be synced like any other feed.
 
 ### 4. Browse and Interact
 - View articles sorted by score (keyword matches + user interactions)
