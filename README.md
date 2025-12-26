@@ -108,6 +108,30 @@ techwatch/
    Access at `http://localhost:8080`
 
 
+
+## Translation Feature (OpenAI)
+
+Tech Watch includes an article translation feature powered by OpenAI. You can translate any article's title and description to English directly from the UI.
+
+### How it works
+- Click the language icon (🌐 or similar) on any article in the Articles page.
+- The frontend sends the article's title and description to the backend `/api/openai/translate` endpoint.
+- The backend uses your configured OpenAI API key to translate the content to English and returns the result.
+- The translation appears in a popup modal, where you can copy or close it.
+
+### Requirements
+- You must set your OpenAI API key in the app (via the config page or environment variable).
+- Internet access is required for the backend to reach the OpenAI API.
+
+### Example
+1. Browse articles as usual.
+2. Click the language icon on an article.
+3. Wait for the translation popup to appear with the English version.
+4. Use the Copy button to copy the translation if needed.
+
+If you encounter errors, check your OpenAI API key and backend logs for details.
+
+---
 ## Usage
 
 ### 1. Register and Login
