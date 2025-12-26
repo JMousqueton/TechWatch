@@ -83,6 +83,16 @@ const { createApp } = Vue;
 import { baseURL } from './config.js';
 
 const api = {
+            // OpenAI API Key config
+            getOpenAIApiKey() {
+                return this.request('/config/openai-key');
+            },
+            setOpenAIApiKey(value) {
+                return this.request('/config/openai-key', {
+                    method: 'POST',
+                    body: JSON.stringify({ key: 'openai_api_key', value })
+                });
+            },
         // Users (admin only)
         getUsers() {
             return this.request('/users/');
@@ -393,6 +403,14 @@ const ArticlesPage = {
             <span style="position:absolute; right:24px; cursor:pointer; font-weight:normal;" @click="errorRibbon = ''">[X]</span>
         </div>
         <div>
+            <div v-if="translationPopup.open" class="translation-popup">
+                <h3>English Translation</h3>
+                <div class="translation-text">{{ translationPopup.text }}</div>
+                <div class="popup-actions" style="display: flex; gap: 18px; justify-content: flex-end;">
+                    <button @click="copyTranslationToClipboard">Copy</button>
+                    <button @click="closeTranslationPopup">Close</button>
+                </div>
+            </div>
             <div class="search-bar">
                 <input v-model="searchQuery" placeholder="Search articles..." @keyup.enter="search">
                 <button class="btn btn-primary" @click="search">Search</button>
@@ -439,7 +457,11 @@ const ArticlesPage = {
                     </div>
                     <div class="article-sidebar" style="display:flex; flex-direction:column; align-items:center;">
                         <div style="display:flex; flex-direction:row; align-items:center; gap:16px;">
-                            <span class="rocket-badge" style="background:#e0e0e0; color:#888; border-radius:6px; padding:2px 8px; display:flex; align-items:center; cursor:pointer; position:relative;" @click="toggleRocketPopup(article.id)">
+                            <span class="language-badge" style="background:#e0e0e0; color:#888; border-radius:6px; padding:2px 8px; display:flex; align-items:center; cursor:pointer; position:relative;"
+                                  @click="translateArticle(article)">
+                                <i class="fa-solid fa-language" style="font-size:2em;"></i>
+                            </span>
+                            <span class="rocket-badge" @click="toggleRocketPopup(article.id)">
                                 <i class="fas fa-rocket" style="font-size:1.5em;"></i>
                                 <div v-if="rocketPopupOpenId === article.id">
                                     <div style="position:fixed; top:0; left:0; width:100vw; height:100vh; background:rgba(0,0,0,0.3); z-index:2000;" @click="closeRocketPopup()"></div>
@@ -475,6 +497,13 @@ const ArticlesPage = {
                             </span>
                         </div>
                     </div>
+                    <div v-if="showTranslationSpinner" class="global-spinner-overlay">
+                        <div class="global-spinner">
+                            <i class="fa fa-spinner fa-spin fa-3x"></i>
+                            <div style="margin-top: 12px; font-size: 1.1em; color: #333;">Translating article...</div>
+                        </div>
+                    </div>
+
                 </div>
             </div>
 
@@ -497,7 +526,9 @@ const ArticlesPage = {
             localFeedId: this.selectedFeedId,
             rocketPopupOpenId: null,
             newestSyncDate: null,
-            refreshing: false // <-- Added refreshing state
+            refreshing: false, // <-- Added refreshing state
+            showTranslationSpinner: false,
+            translationPopup: { open: false, text: '' }
         };
     },
     watch: {
@@ -510,6 +541,46 @@ const ArticlesPage = {
         this.loadArticles();
     },
     methods: {
+        async translateArticle(article) {
+            this.showTranslationSpinner = true;
+            this.translationPopup.open = false;
+            this.translationPopup.text = '';
+            try {
+                // Send title and description as required by backend
+                const res = await this.api.request('/openai/translate', {
+                    method: 'POST',
+                    body: JSON.stringify({
+                        title: article.title,
+                        description: article.description || ''
+                    })
+                });
+                this.translationPopup.open = true;
+                this.translationPopup.text = res.translation || res.text || 'No translation returned.';
+            } catch (e) {
+                this.translationPopup.open = true;
+                this.translationPopup.text = 'Translation failed: ' + (e.message || e);
+            } finally {
+                this.showTranslationSpinner = false;
+            }
+        },
+        closeTranslationPopup() {
+            this.translationPopup.open = false;
+        },
+        copyTranslationToClipboard() {
+            if (navigator && navigator.clipboard) {
+                navigator.clipboard.writeText(this.translationPopup.text);
+                showToast('Copied to clipboard!', 'success');
+            } else {
+                // fallback
+                const textarea = document.createElement('textarea');
+                textarea.value = this.translationPopup.text;
+                document.body.appendChild(textarea);
+                textarea.select();
+                document.execCommand('copy');
+                document.body.removeChild(textarea);
+                showToast('Copied to clipboard!', 'success');
+            }
+        },
         toggleRocketPopup(articleId) {
             this.rocketPopupOpenId = this.rocketPopupOpenId === articleId ? null : articleId;
         },
@@ -1402,7 +1473,7 @@ const DashboardComponent = {
                     </ul>
                 </div>
                 <div style="text-align: center; font-size: 12px; color: #888; margin-bottom: 12px;">
-                    &copy; Julien Mousqueton 2025-{{ new Date().getFullYear() }}
+                    &copy; <a href="https://github.com/JMousqueton/TechWatch" target="_blank" style="color:#1976d2; text-decoration:underline;">Julien Mousqueton</a> 2025-{{ new Date().getFullYear() }}
                 </div>
             </div>
             <div class="main-content" style="flex:1; display:flex; flex-direction:column; min-width:0;">
@@ -1519,6 +1590,15 @@ const AdminPage = {
                     </label>
                     <button class="btn btn-danger" @click="purgeArticles" :disabled="running">Purge</button>
                 </div>
+                <div style="margin-top: 32px; padding: 18px 24px; background: #f5f7fa; border-radius: 8px; max-width: 480px;">
+                    <h4 style="margin-bottom: 10px; color: #1976d2;"><i class="fas fa-key"></i> Configure OpenAI API Key</h4>
+                    <form @submit.prevent="saveOpenAIApiKey" style="display: flex; gap: 12px; align-items: center;">
+                        <input v-model="openAIApiKey" type="password" placeholder="sk-..." style="flex:1; padding: 8px; border-radius: 4px; border: 1px solid #ccc;" required>
+                        <button class="btn btn-primary" type="submit">Save</button>
+                    </form>
+                    <div v-if="openAIApiKeySaved" style="color: #27ae60; margin-top: 8px;">API key saved.</div>
+                    <div v-if="openAIApiKeyError" style="color: #e74c3c; margin-top: 8px;">{{ openAIApiKeyError }}</div>
+                </div>
                 <div v-if="running" style="margin-top:10px;">Running... {{ progress }}</div>
                 <div v-if="result" style="margin-top:10px;">Rescored: {{ result.rescored_articles }}; Errors: {{ result.errors.length }}</div>
                 <div v-if="purgeResult" style="margin-top:10px;">Purged: {{ purgeResult.purged_articles || 0 }} articles</div>
@@ -1596,13 +1676,36 @@ const AdminPage = {
             tab: 'tools',
             running: false, progress: '', result: null, purgeDays: 30, purgeResult: null,
             users: [], showCreate: false, newUser: { username: '', email: '', password: '' },
-            editId: null, editUser: { username: '', email: '', password: '' }
+            editId: null, editUser: { username: '', email: '', password: '' },
+            openAIApiKey: '',
+            openAIApiKeySaved: false,
+            openAIApiKeyError: ''
         };
     },
     mounted() {
         this.loadUsers();
+        this.loadOpenAIApiKey();
     },
     methods: {
+        async loadOpenAIApiKey() {
+            try {
+                const res = await api.getOpenAIApiKey();
+                this.openAIApiKey = res.value;
+            } catch (e) {
+                this.openAIApiKey = '';
+            }
+        },
+        async saveOpenAIApiKey() {
+            this.openAIApiKeySaved = false;
+            this.openAIApiKeyError = '';
+            try {
+                await api.setOpenAIApiKey(this.openAIApiKey);
+                this.openAIApiKeySaved = true;
+                setTimeout(() => { this.openAIApiKeySaved = false; }, 2000);
+            } catch (e) {
+                this.openAIApiKeyError = e.message || 'Failed to save key';
+            }
+        },
         async loadUsers() {
             try {
                 this.users = await api.getUsers();

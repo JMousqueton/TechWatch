@@ -4,6 +4,7 @@ from fastapi.staticfiles import StaticFiles
 from app.config import settings
 from app.database import Base, engine
 from app.routes import auth_router, feeds_router, keywords_router, articles_router, config_router, users_router
+from app.routes.openai import router as openai_router
 from app.routes.statistics import router as statistics_router
 from app.routes.maintenance import router as maintenance_router
 # Import models to register them with Base
@@ -38,8 +39,10 @@ app.include_router(keywords_router, prefix="/api")
 app.include_router(articles_router, prefix="/api")
 app.include_router(config_router, prefix="/api")
 app.include_router(users_router, prefix="/api")
+
 app.include_router(maintenance_router, prefix="/api")
 app.include_router(statistics_router, prefix="/api")
+app.include_router(openai_router, prefix="/api")
 
 @app.get("/")
 def root():
